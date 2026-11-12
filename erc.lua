@@ -1,8 +1,6 @@
 --[[
-	纯特效版：赛博斯安威斯坦
-	保留：滤镜、音效、屏幕闪烁、相机震动、残影拖尾（自动消亡）
-	完全移除了：速度修改、跳跃修改、椅子、任何物理属性修改（绝对安全）
-	按 F 键 开启/关闭
+	纯特效版：赛博斯安威斯坦（修复 R15 拖尾动作 Bug）
+	完美保留 R15 / R6 的动作姿态
 ]]
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
@@ -17,9 +15,9 @@ local camera = Workspace.CurrentCamera
 -- 设置参数
 local ACTION_NAME = "SandevistanToggle"
 local TOGGLE_KEY = Enum.KeyCode.F
-local CLONE_INTERVAL = 0.03  -- 生成残影的间隔
-local CLONE_LIFETIME = 0.6   -- 残影存活时间
-local CLONE_FADE_TIME = 0.3  -- 残影消失时的渐变时间
+local CLONE_INTERVAL = 0.03  
+local CLONE_LIFETIME = 0.6   
+local CLONE_FADE_TIME = 0.3  
 
 -- 状态
 local isActive = false
@@ -104,40 +102,57 @@ local function cameraShake(duration, magnitude)
 	end)
 end
 
--- 生成残影
+-- 【核心修复：快照法生成残影】
 local function createClone()
 	if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-	character.Archivable = true
-
-	local clone = character:Clone()
 	local root = character:FindFirstChild("HumanoidRootPart")
 	if not root then return end
 
-	clone.Name = "SandevistanClone"
-	clone.Parent = workspace
-	clone:SetPrimaryPartCFrame(root.CFrame * CFrame.new(0, 1.5, 0))
+	-- 创建一个空的模型来存放残影部件
+	local cloneModel = Instance.new("Model")
+	cloneModel.Name = "SandevistanClone"
 
-	local humanoidClone = clone:FindFirstChildOfClass("Humanoid")
-	if humanoidClone then humanoidClone:Destroy() end
+	-- 弄一个隐形的中心点，方便定位和高亮
+	local dummyRoot = Instance.new("Part")
+	dummyRoot.Name = "HumanoidRootPart"
+	dummyRoot.Transparency = 1
+	dummyRoot.Anchored = true
+	dummyRoot.CanCollide = false
+	dummyRoot.CFrame = root.CFrame * CFrame.new(0, 1.5, 0)
+	dummyRoot.Parent = cloneModel
+	cloneModel.PrimaryPart = dummyRoot
 
-	for _, obj in ipairs(clone:GetDescendants()) do
-		if obj:IsA("BasePart") then
-			obj.Anchored = true
-			obj.CanCollide = false
-			obj.Transparency = 0
-		elseif obj:IsA("Decal") then
-			obj.Transparency = 0
+	-- 遍历你身上的所有部件（包含衣服、帽子等）
+	for _, obj in ipairs(character:GetDescendants()) do
+		if obj:IsA("BasePart") and obj.Name ~= "HumanoidRootPart" then
+			local newPart = obj:Clone()
+			newPart.Anchored = true
+			newPart.CanCollide = false
+			-- 【关键】：直接抓取当前世界坐标中的 CFrame，记录下这一刻的姿势
+			newPart.CFrame = obj.CFrame
+			
+			-- 移除原来的马达关节，防止物理拉扯导致姿势变形
+			for _, child in ipairs(newPart:GetChildren()) do
+				if child:IsA("JointInstance") or child:IsA("Motor6D") then
+					child:Destroy()
+				end
+			end
+			newPart.Parent = cloneModel
 		end
 	end
 
+	cloneModel.Parent = workspace
+
+	-- 高亮效果
 	local highlight = Instance.new("Highlight")
 	highlight.FillColor = colorSequence[1]
 	highlight.OutlineColor = colorSequence[1]
 	highlight.FillTransparency = 0.3
 	highlight.OutlineTransparency = 0.6
 	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
-	highlight.Parent = clone
+	highlight.Parent = cloneModel
 
+	-- 颜色循环
 	local index = 1
 	local duration = 0.2
 	local function cycleColor()
@@ -148,23 +163,23 @@ local function createClone()
 		})
 		tween:Play()
 		tween.Completed:Wait()
-		if clone.Parent then cycleColor() end
+		if cloneModel.Parent then cycleColor() end
 	end
 	task.spawn(cycleColor)
 
-	local cloneData = { clone = clone, highlight = highlight }
+	local cloneData = { clone = cloneModel, highlight = highlight }
 	table.insert(activeClones, cloneData)
 
-	-- 残影自动消亡逻辑
+	-- 自动消亡逻辑
 	task.spawn(function()
 		task.wait(CLONE_LIFETIME)
-		if clone and clone.Parent then
+		if cloneModel and cloneModel.Parent then
 			TweenService:Create(highlight, TweenInfo.new(CLONE_FADE_TIME), {
 				FillTransparency = 1,
 				OutlineTransparency = 1
 			}):Play()
 			
-			for _, part in ipairs(clone:GetDescendants()) do
+			for _, part in ipairs(cloneModel:GetDescendants()) do
 				if part:IsA("BasePart") or part:IsA("Decal") then
 					TweenService:Create(part, TweenInfo.new(CLONE_FADE_TIME), { Transparency = 1 }):Play()
 				end
@@ -172,10 +187,10 @@ local function createClone()
 			
 			task.wait(CLONE_FADE_TIME)
 			
-			if clone and clone.Parent then clone:Destroy() end
+			if cloneModel and cloneModel.Parent then cloneModel:Destroy() end
 			
 			for i, v in ipairs(activeClones) do
-				if v.clone == clone then
+				if v.clone == cloneModel then
 					table.remove(activeClones, i)
 					break
 				end
@@ -206,12 +221,10 @@ local function cleanupClones()
 	activeClones = {}
 end
 
--- 视觉效果
 local function setVisuals(active)
 	TweenService:Create(colorCorrection, TweenInfo.new(0.4), effectColors[active and "Active" or "Inactive"]):Play()
 end
 
--- 开始/停止生成残影
 local function startCloneSpawning()
 	cloneSpawning = true
 	coroutine.wrap(function()
@@ -226,31 +239,24 @@ local function stopCloneSpawning()
 	cloneSpawning = false
 end
 
--- 核心开关（纯特效，无物理修改）
 local function activate()
 	if isActive then return end
 	isActive = true
-	
 	setVisuals(true)
 	sound:Play()
-
 	task.spawn(function()
 		flashScreen()
 		cameraShake(0.25, 0.2)
 	end)
-
 	startCloneSpawning()
 end
 
 function deactivate()
 	if not isActive then return end
 	isActive = false
-
 	stopCloneSpawning()
 	task.wait(CLONE_INTERVAL * 1.1)
-
 	setVisuals(false)
-
 	if sound.IsPlaying then
 		local tween = TweenService:Create(sound, TweenInfo.new(0.4), { Volume = 0 })
 		tween:Play()
@@ -259,12 +265,10 @@ function deactivate()
 			sound.Volume = 1
 		end)
 	end
-
 	task.spawn(function()
 		flashScreen()
 		cameraShake(0.25, 0.2)
 	end)
-
 	cleanupClones()
 end
 
@@ -285,7 +289,6 @@ if player.Character then
 	bindCharacter(player.Character)
 end
 
--- 按键绑定
 local function handleAction(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin then
 		toggleSandevistan()
@@ -294,7 +297,6 @@ end
 
 ContextActionService:BindAction(ACTION_NAME, handleAction, true, TOGGLE_KEY)
 
--- 手机端按钮
 local mobileButton = ContextActionService:GetButton(ACTION_NAME)
 if mobileButton then
 	mobileButton.Size = UDim2.new(0, 60, 0, 60)
