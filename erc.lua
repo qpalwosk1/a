@@ -1,6 +1,6 @@
 --[[
-	纯特效版：赛博斯安威斯坦（修复 R15 拖尾动作 Bug）
-	完美保留 R15 / R6 的动作姿态
+	纯特效终极版（彻底解决开启瞬间本人被固定卡死的问题）
+	只提取模型外观做残影，不对本体物理产生任何干扰。
 ]]
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
@@ -12,12 +12,13 @@ local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
--- 设置参数
+-- 设置参数 (降低了生成频率，保护性能)
 local ACTION_NAME = "SandevistanToggle"
 local TOGGLE_KEY = Enum.KeyCode.F
-local CLONE_INTERVAL = 0.03  
+local CLONE_INTERVAL = 0.08  -- 稍微降低频率，肉眼依然连贯，但彻底告别卡顿
 local CLONE_LIFETIME = 0.6   
 local CLONE_FADE_TIME = 0.3  
+local MAX_CLONES = 15        -- 限制最大数量
 
 -- 状态
 local isActive = false
@@ -102,55 +103,51 @@ local function cameraShake(duration, magnitude)
 	end)
 end
 
--- 【核心修复：快照法生成残影】
+-- 【核心重写：绝不卡顿的残影生成法】
 local function createClone()
-	if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-	local root = character:FindFirstChild("HumanoidRootPart")
-	if not root then return end
+	if not character then return end
+	
+	-- 1. 限制最大数量，超出则删最旧的
+	if #activeClones >= MAX_CLONES then
+		local oldest = table.remove(activeClones, 1)
+		if oldest and oldest.clone and oldest.clone.Parent then
+			oldest.clone:Destroy()
+		end
+	end
 
-	-- 创建一个空的模型来存放残影部件
-	local cloneModel = Instance.new("Model")
-	cloneModel.Name = "SandevistanClone"
+	-- 2. 建一个空文件夹装残影零件
+	local cloneFolder = Instance.new("Folder")
+	cloneFolder.Name = "SandevistanClone"
 
-	-- 弄一个隐形的中心点，方便定位和高亮
-	local dummyRoot = Instance.new("Part")
-	dummyRoot.Name = "HumanoidRootPart"
-	dummyRoot.Transparency = 1
-	dummyRoot.Anchored = true
-	dummyRoot.CanCollide = false
-	dummyRoot.CFrame = root.CFrame * CFrame.new(0, 1.5, 0)
-	dummyRoot.Parent = cloneModel
-	cloneModel.PrimaryPart = dummyRoot
-
-	-- 遍历你身上的所有部件（包含衣服、帽子等）
+	-- 3. 遍历你身上的所有可见部件（跳过原始根部件，防止出Bug）
 	for _, obj in ipairs(character:GetDescendants()) do
 		if obj:IsA("BasePart") and obj.Name ~= "HumanoidRootPart" then
 			local newPart = obj:Clone()
 			newPart.Anchored = true
 			newPart.CanCollide = false
-			-- 【关键】：直接抓取当前世界坐标中的 CFrame，记录下这一刻的姿势
-			newPart.CFrame = obj.CFrame
+			newPart.CFrame = obj.CFrame -- 【关键】直接抓取当前动作的绝对坐标
 			
-			-- 移除原来的马达关节，防止物理拉扯导致姿势变形
+			-- 清理新部件上的关节，防止物理散架
 			for _, child in ipairs(newPart:GetChildren()) do
-				if child:IsA("JointInstance") or child:IsA("Motor6D") then
+				if child:IsA("JointInstance") or child:IsA("Motor6D") or child:IsA("Script") then
 					child:Destroy()
 				end
 			end
-			newPart.Parent = cloneModel
+			
+			newPart.Parent = cloneFolder
 		end
 	end
 
-	cloneModel.Parent = workspace
+	cloneFolder.Parent = workspace
 
-	-- 高亮效果
+	-- 高亮特效
 	local highlight = Instance.new("Highlight")
 	highlight.FillColor = colorSequence[1]
 	highlight.OutlineColor = colorSequence[1]
 	highlight.FillTransparency = 0.3
 	highlight.OutlineTransparency = 0.6
 	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
-	highlight.Parent = cloneModel
+	highlight.Parent = cloneFolder
 
 	-- 颜色循环
 	local index = 1
@@ -163,34 +160,33 @@ local function createClone()
 		})
 		tween:Play()
 		tween.Completed:Wait()
-		if cloneModel.Parent then cycleColor() end
+		if cloneFolder.Parent then cycleColor() end
 	end
 	task.spawn(cycleColor)
 
-	local cloneData = { clone = cloneModel, highlight = highlight }
+	local cloneData = { clone = cloneFolder, highlight = highlight }
 	table.insert(activeClones, cloneData)
 
 	-- 自动消亡逻辑
 	task.spawn(function()
 		task.wait(CLONE_LIFETIME)
-		if cloneModel and cloneModel.Parent then
+		if cloneFolder and cloneFolder.Parent then
 			TweenService:Create(highlight, TweenInfo.new(CLONE_FADE_TIME), {
 				FillTransparency = 1,
 				OutlineTransparency = 1
 			}):Play()
 			
-			for _, part in ipairs(cloneModel:GetDescendants()) do
+			for _, part in ipairs(cloneFolder:GetDescendants()) do
 				if part:IsA("BasePart") or part:IsA("Decal") then
 					TweenService:Create(part, TweenInfo.new(CLONE_FADE_TIME), { Transparency = 1 }):Play()
 				end
 			end
 			
 			task.wait(CLONE_FADE_TIME)
-			
-			if cloneModel and cloneModel.Parent then cloneModel:Destroy() end
+			if cloneFolder and cloneFolder.Parent then cloneFolder:Destroy() end
 			
 			for i, v in ipairs(activeClones) do
-				if v.clone == cloneModel then
+				if v.clone == cloneFolder then
 					table.remove(activeClones, i)
 					break
 				end
