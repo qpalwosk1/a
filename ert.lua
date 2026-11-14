@@ -1,7 +1,8 @@
 --[[
-	完美速度版：赛博斯安威斯坦
-	保留了：加速、高跳、滤镜、音效、残影（自动消亡）
-	移除了：隐形椅子（解决朝向锁死问题）、冻结玩家
+	终极物理特效版：赛博斯安威斯坦
+	保留了：速度修改、跳跃修改、滤镜、音效、全屏闪白（最顶层UI）、残影拖尾
+	移除了：隐形椅子（绝不会锁朝向）、冻结玩家
+	注意：此版本在R15下残影可能是站立姿势（因为去掉了复杂快照防卡顿），R6完美。
 ]]
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
@@ -20,9 +21,9 @@ local NORMAL_SPEED = 16
 local BOOSTED_SPEED = 80
 local NORMAL_JUMP_POWER = 50
 local BOOSTED_JUMP_POWER = 70
-local CLONE_INTERVAL = 0.03
-local CLONE_LIFETIME = 0.6
-local CLONE_FADE_TIME = 0.3
+local CLONE_INTERVAL = 0.03  
+local CLONE_LIFETIME = 0.6   
+local CLONE_FADE_TIME = 0.3  
 
 -- 状态
 local isActive = false
@@ -57,7 +58,7 @@ local effectColors = {
 	Inactive = { Contrast = 0, Saturation = 0, TintColor = Color3.new(1, 1, 1) }
 }
 
--- 屏幕闪白
+-- 屏幕闪白（最高层级UI）
 local function flashScreen()
 	if flashGui then flashGui:Destroy() end
 	flashGui = Instance.new("ScreenGui")
@@ -65,6 +66,7 @@ local function flashScreen()
 	flashGui.IgnoreGuiInset = true
 	flashGui.ResetOnSpawn = false
 	flashGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+	flashGui.DisplayOrder = 999999 -- 盖在最上面
 	flashGui.Parent = player:WaitForChild("PlayerGui")
 
 	local flash = Instance.new("Frame")
@@ -73,7 +75,7 @@ local function flashScreen()
 	flash.BackgroundColor3 = Color3.new(1, 1, 1)
 	flash.BorderSizePixel = 0
 	flash.BackgroundTransparency = 1
-	flash.ZIndex = 999
+	flash.ZIndex = 999999
 	flash.Parent = flashGui
 
 	local tweenIn = TweenService:Create(flash, TweenInfo.new(0.05), { BackgroundTransparency = 0 })
@@ -107,7 +109,7 @@ local function cameraShake(duration, magnitude)
 	end)
 end
 
--- 生成残影
+-- 生成残影（原版克隆，不留椅子）
 local function createClone()
 	if not character or not character:FindFirstChild("HumanoidRootPart") then return end
 	character.Archivable = true
@@ -229,14 +231,16 @@ local function stopCloneSpawning()
 	cloneSpawning = false
 end
 
--- 核心开关
+-- 核心开关（物理特效全开）
 local function activate()
 	if isActive then return end
 	isActive = true
 	
-	-- 核心加速
-	humanoid.WalkSpeed = BOOSTED_SPEED
-	humanoid.JumpPower = BOOSTED_JUMP_POWER
+	-- 【物理修改】加速 + 高跳
+	if humanoid then
+		humanoid.WalkSpeed = BOOSTED_SPEED
+		humanoid.JumpPower = BOOSTED_JUMP_POWER
+	end
 	
 	setVisuals(true)
 	sound:Play()
@@ -256,9 +260,11 @@ function deactivate()
 	stopCloneSpawning()
 	task.wait(CLONE_INTERVAL * 1.1)
 
-	-- 恢复原速
-	humanoid.WalkSpeed = NORMAL_SPEED
-	humanoid.JumpPower = NORMAL_JUMP_POWER
+	-- 【物理恢复】恢复原速
+	if humanoid then
+		humanoid.WalkSpeed = NORMAL_SPEED
+		humanoid.JumpPower = NORMAL_JUMP_POWER
+	end
 
 	setVisuals(false)
 
@@ -289,7 +295,7 @@ end
 
 local function bindCharacter(char)
 	character = char
-	humanoid = character:WaitForChild("Humanoid")
+	humanoid = character:WaitForChild("Humanoid") -- 获取 Humanoid 以便修改物理属性
 end
 
 player.CharacterAdded:Connect(bindCharacter)
