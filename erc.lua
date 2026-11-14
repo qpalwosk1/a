@@ -1,9 +1,4 @@
---[[
-	纯特效置顶版：赛博斯安威斯坦
-	保留：滤镜、音效、全屏闪白（极限层级UI）、相机震动、残影拖尾（自动消亡）、独立置顶 Sandy 按钮
-	绝对不修改：速度、跳跃力、朝向、任何物理属性（绝对安全，不会被服务器踢）
-	按 F 键 或 点击 Sandy 按钮 开启/关闭
-]]
+-- 纯特效版：赛博斯安威斯坦（无物理修改，UI置顶）
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
@@ -14,13 +9,11 @@ local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
--- 设置参数
 local TOGGLE_KEY = Enum.KeyCode.F
 local CLONE_INTERVAL = 0.03  
 local CLONE_LIFETIME = 0.6   
 local CLONE_FADE_TIME = 0.3  
 
--- 状态
 local isActive = false
 local activeClones = {}
 local flashGui = nil
@@ -28,7 +21,6 @@ local currentShakeConnection = nil
 local character
 local cloneSpawning = false
 
--- 特效对象
 local colorCorrection = Instance.new("ColorCorrectionEffect")
 colorCorrection.Name = "SandevistanEffect"
 colorCorrection.Parent = Lighting
@@ -53,7 +45,6 @@ local effectColors = {
 	Inactive = { Contrast = 0, Saturation = 0, TintColor = Color3.new(1, 1, 1) }
 }
 
--- 屏幕闪白（极限置顶UI）
 local function flashScreen()
 	if flashGui then flashGui:Destroy() end
 	flashGui = Instance.new("ScreenGui")
@@ -84,7 +75,6 @@ local function flashScreen()
 	flashGui:Destroy()
 end
 
--- 镜头震动
 local function cameraShake(duration, magnitude)
 	if currentShakeConnection then currentShakeConnection:Disconnect() end
 	local startTime = tick()
@@ -104,7 +94,6 @@ local function cameraShake(duration, magnitude)
 	end)
 end
 
--- 生成残影
 local function createClone()
 	if not character or not character:FindFirstChild("HumanoidRootPart") then return end
 	character.Archivable = true
@@ -155,7 +144,6 @@ local function createClone()
 	local cloneData = { clone = clone, highlight = highlight }
 	table.insert(activeClones, cloneData)
 
-	-- 残影自动消亡
 	task.spawn(function()
 		task.wait(CLONE_LIFETIME)
 		if clone and clone.Parent then
@@ -223,12 +211,9 @@ local function stopCloneSpawning()
 	cloneSpawning = false
 end
 
--- 核心开关（纯特效，无任何物理修改）
 local function activate()
 	if isActive then return end
 	isActive = true
-	
-	-- 这里不包含任何 humanoid.WalkSpeed 或 JumpPower 的修改
 	setVisuals(true)
 	sound:Play()
 
@@ -283,7 +268,6 @@ if player.Character then
 	bindCharacter(player.Character)
 end
 
--- 键盘监听
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	if input.KeyCode == TOGGLE_KEY then
@@ -291,7 +275,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	end
 end)
 
--- 最顶层 Sandy 按钮
 local buttonGui = Instance.new("ScreenGui")
 buttonGui.Name = "SandyButtonGui"
 buttonGui.ResetOnSpawn = false
@@ -301,14 +284,14 @@ buttonGui.Parent = player:WaitForChild("PlayerGui")
 
 local sandyButton = Instance.new("TextButton")
 sandyButton.Size = UDim2.new(0, 60, 0, 60)
-sandyButton.Position = UDim2.new(1, -80, 1, -160) 
+sandyButton.Position = UDim2.new(1, -110, 1, -100) 
 sandyButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 sandyButton.BackgroundTransparency = 0.5
 sandyButton.BorderSizePixel = 0
-sandyButton.Text = "Sandy"
+sandyButton.Text = "特效"
 sandyButton.TextColor3 = Color3.fromRGB(248, 230, 2)
-sandyButton.TextSize = 16
-sandyButton.Font = Enum.Font.GothamBold
+sandyButton.TextSize = 15
+sandyButton.Font = Enum.Font.SourceHanSansBold
 sandyButton.ZIndex = 2147483647
 sandyButton.Parent = buttonGui
 
