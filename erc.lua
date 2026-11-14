@@ -1,8 +1,9 @@
 --[[
-	纯特效版：赛博斯安威斯坦
+	纯特效版：赛博斯安威斯坦（全界面显示版）
 	保留：滤镜、音效、屏幕闪烁、相机震动、残影拖尾（自动消亡）
 	完全移除了：速度修改、跳跃修改、椅子、任何物理属性修改（绝对安全）
-	按 F 键 开启/关闭
+	优化了：全屏闪白 UI 层级拉到最高，任何界面都能显示
+	按 F 键 开启/关闭，移动端有 Sandy 按钮
 ]]
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
@@ -54,7 +55,7 @@ local effectColors = {
 	Inactive = { Contrast = 0, Saturation = 0, TintColor = Color3.new(1, 1, 1) }
 }
 
--- 屏幕闪白
+-- 屏幕闪白（已提高UI层级）
 local function flashScreen()
 	if flashGui then flashGui:Destroy() end
 	flashGui = Instance.new("ScreenGui")
@@ -62,6 +63,8 @@ local function flashScreen()
 	flashGui.IgnoreGuiInset = true
 	flashGui.ResetOnSpawn = false
 	flashGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+	-- 【关键修改】：把 UI 层级拉到最高，甚至盖过游戏自身的菜单
+	flashGui.DisplayOrder = 999999 
 	flashGui.Parent = player:WaitForChild("PlayerGui")
 
 	local flash = Instance.new("Frame")
@@ -70,7 +73,8 @@ local function flashScreen()
 	flash.BackgroundColor3 = Color3.new(1, 1, 1)
 	flash.BorderSizePixel = 0
 	flash.BackgroundTransparency = 1
-	flash.ZIndex = 999
+	-- 保证 Frame 本身的 ZIndex 也足够高
+	flash.ZIndex = 999999 
 	flash.Parent = flashGui
 
 	local tweenIn = TweenService:Create(flash, TweenInfo.new(0.05), { BackgroundTransparency = 0 })
@@ -226,11 +230,12 @@ local function stopCloneSpawning()
 	cloneSpawning = false
 end
 
--- 核心开关（纯特效，无物理修改）
+-- 核心开关（纯特效，绝无物理修改）
 local function activate()
 	if isActive then return end
 	isActive = true
 	
+	-- 仅改变视觉滤镜和音效，绝不碰 humanoid
 	setVisuals(true)
 	sound:Play()
 
@@ -278,6 +283,7 @@ end
 
 local function bindCharacter(char)
 	character = char
+	-- 注意：这里没有获取或修改 humanoid 的任何属性
 end
 
 player.CharacterAdded:Connect(bindCharacter)
