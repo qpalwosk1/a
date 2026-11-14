@@ -1,14 +1,14 @@
--- 有速度版：赛博斯安威斯坦（带移速/跳跃，UI置顶）
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
 local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
+local ACTION_NAME = "SandevistanToggle"
 local TOGGLE_KEY = Enum.KeyCode.F
 local NORMAL_SPEED = 16
 local BOOSTED_SPEED = 80
@@ -56,7 +56,6 @@ local function flashScreen()
 	flashGui.IgnoreGuiInset = true
 	flashGui.ResetOnSpawn = false
 	flashGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-	flashGui.DisplayOrder = 2147483647 
 	flashGui.Parent = player:WaitForChild("PlayerGui")
 
 	local flash = Instance.new("Frame")
@@ -65,7 +64,7 @@ local function flashScreen()
 	flash.BackgroundColor3 = Color3.new(1, 1, 1)
 	flash.BorderSizePixel = 0
 	flash.BackgroundTransparency = 1
-	flash.ZIndex = 2147483647
+	flash.ZIndex = 999
 	flash.Parent = flashGui
 
 	local tweenIn = TweenService:Create(flash, TweenInfo.new(0.05), { BackgroundTransparency = 0 })
@@ -284,37 +283,23 @@ if player.Character then
 	bindCharacter(player.Character)
 end
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
-	if input.KeyCode == TOGGLE_KEY then
+local function handleAction(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin then
 		toggleSandevistan()
 	end
-end)
+end
 
-local buttonGui = Instance.new("ScreenGui")
-buttonGui.Name = "SandyButtonGui"
-buttonGui.ResetOnSpawn = false
-buttonGui.IgnoreGuiInset = true
-buttonGui.DisplayOrder = 2147483647 
-buttonGui.Parent = player:WaitForChild("PlayerGui")
+ContextActionService:BindAction(ACTION_NAME, handleAction, true, TOGGLE_KEY)
 
-local sandyButton = Instance.new("TextButton")
-sandyButton.Size = UDim2.new(0, 60, 0, 60)
-sandyButton.Position = UDim2.new(1, -110, 1, -100) 
-sandyButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-sandyButton.BackgroundTransparency = 0.5
-sandyButton.BorderSizePixel = 0
-sandyButton.Text = "加速"
-sandyButton.TextColor3 = Color3.fromRGB(248, 230, 2)
-sandyButton.TextSize = 15
-sandyButton.Font = Enum.Font.SourceHanSansBold
-sandyButton.ZIndex = 2147483647
-sandyButton.Parent = buttonGui
-
-local buttonCorner = Instance.new("UICorner")
-buttonCorner.CornerRadius = UDim.new(1, 0)
-buttonCorner.Parent = sandyButton
-
-sandyButton.MouseButton1Click:Connect(function()
-	toggleSandevistan()
-end)
+local mobileButton = ContextActionService:GetButton(ACTION_NAME)
+if mobileButton then
+	mobileButton.Size = UDim2.new(0, 60, 0, 60)
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Size = UDim2.new(1, 0, 1, 0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.Text = "Sandy"
+	textLabel.TextColor3 = Color3.fromRGB(248, 230, 2)
+	textLabel.TextSize = 16
+	textLabel.Font = Enum.Font.GothamBold
+	textLabel.Parent = mobileButton
+end
