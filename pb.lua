@@ -1,8 +1,9 @@
 --[[
-	纯特效置顶版：赛博斯安威斯坦（平板绝对坐标定制版）
-	保留：滤镜、音效、全屏闪白（极限层级UI）、相机震动、残影拖尾、独立置顶 Sandy 按钮
-	绝对不修改：速度、跳跃力、朝向、任何物理属性（绝对安全）
-	按 F 键 或 点击 Sandy 按钮 开启/关闭
+	纯特效终极置顶版：赛博斯安威斯坦
+	✅ 绝对安全：无任何速度、跳跃力等物理修改。
+	✅ 极限置顶：全屏闪白和 Sandy 按钮绝对不会被任何游戏 UI 遮挡。
+	✅ 精准定位：按钮固定在右下角红点位置。
+	✅ 完美残影：自动生成、自动消亡，不卡顿本体。
 ]]
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
@@ -155,6 +156,7 @@ local function createClone()
 	local cloneData = { clone = clone, highlight = highlight }
 	table.insert(activeClones, cloneData)
 
+	-- 残影自动消亡
 	task.spawn(function()
 		task.wait(CLONE_LIFETIME)
 		if clone and clone.Parent then
@@ -183,6 +185,7 @@ local function createClone()
 	end)
 end
 
+-- 总清理
 local function cleanupClones()
 	for _, data in ipairs(activeClones) do
 		local clone, highlight = data.clone, data.highlight
@@ -222,6 +225,7 @@ local function stopCloneSpawning()
 	cloneSpawning = false
 end
 
+-- 核心开关（纯特效，无物理修改）
 local function activate()
 	if isActive then return end
 	isActive = true
@@ -288,7 +292,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	end
 end)
 
--- 【精确坐标】：最顶层 Sandy 按钮，按照你的平板坐标放置
+-- 【极限置顶UI】：独立 Sandy 按钮
 local buttonGui = Instance.new("ScreenGui")
 buttonGui.Name = "SandyButtonGui"
 buttonGui.ResetOnSpawn = false
@@ -297,11 +301,10 @@ buttonGui.DisplayOrder = 2147483647
 buttonGui.Parent = player:WaitForChild("PlayerGui")
 
 local sandyButton = Instance.new("TextButton")
-sandyButton.Size = UDim2.new(0, 60, 0, 60) -- 按钮大小 60x60
+sandyButton.Size = UDim2.new(0, 60, 0, 60)
 
--- 【坐标核心】：锚点居中，然后放到你给的绝对像素位置
-sandyButton.AnchorPoint = Vector2.new(0.5, 0.5) 
-sandyButton.Position = UDim2.new(0, 1726, 0, 914) 
+-- 【红点定位】：相对右下角的精确偏移
+sandyButton.Position = UDim2.new(1, -110, 1, -100) 
 
 sandyButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 sandyButton.BackgroundTransparency = 0.5
