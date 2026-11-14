@@ -1,26 +1,24 @@
 --[[
-	纯特效版：赛博斯安威斯坦（全界面显示版）
-	保留：滤镜、音效、屏幕闪烁、相机震动、残影拖尾（自动消亡）
-	完全移除了：速度修改、跳跃修改、椅子、任何物理属性修改（绝对安全）
-	优化了：全屏闪白 UI 层级拉到最高，任何界面都能显示
-	按 F 键 开启/关闭，移动端有 Sandy 按钮
+	纯特效置顶版：赛博斯安威斯坦
+	保留：滤镜、音效、全屏闪白（极限层级UI）、相机震动、残影拖尾（自动消亡）、独立置顶 Sandy 按钮
+	绝对不修改：速度、跳跃力、朝向、任何物理属性（绝对安全，不会被服务器踢）
+	按 F 键 或 点击 Sandy 按钮 开启/关闭
 ]]
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local ContextActionService = game:GetService("ContextActionService")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
 -- 设置参数
-local ACTION_NAME = "SandevistanToggle"
 local TOGGLE_KEY = Enum.KeyCode.F
-local CLONE_INTERVAL = 0.03  -- 生成残影的间隔
-local CLONE_LIFETIME = 0.6   -- 残影存活时间
-local CLONE_FADE_TIME = 0.3  -- 残影消失时的渐变时间
+local CLONE_INTERVAL = 0.03  
+local CLONE_LIFETIME = 0.6   
+local CLONE_FADE_TIME = 0.3  
 
 -- 状态
 local isActive = false
@@ -55,7 +53,7 @@ local effectColors = {
 	Inactive = { Contrast = 0, Saturation = 0, TintColor = Color3.new(1, 1, 1) }
 }
 
--- 屏幕闪白（已提高UI层级）
+-- 屏幕闪白（极限置顶UI）
 local function flashScreen()
 	if flashGui then flashGui:Destroy() end
 	flashGui = Instance.new("ScreenGui")
@@ -63,8 +61,7 @@ local function flashScreen()
 	flashGui.IgnoreGuiInset = true
 	flashGui.ResetOnSpawn = false
 	flashGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-	-- 【关键修改】：把 UI 层级拉到最高，甚至盖过游戏自身的菜单
-	flashGui.DisplayOrder = 999999 
+	flashGui.DisplayOrder = 2147483647 
 	flashGui.Parent = player:WaitForChild("PlayerGui")
 
 	local flash = Instance.new("Frame")
@@ -73,8 +70,7 @@ local function flashScreen()
 	flash.BackgroundColor3 = Color3.new(1, 1, 1)
 	flash.BorderSizePixel = 0
 	flash.BackgroundTransparency = 1
-	-- 保证 Frame 本身的 ZIndex 也足够高
-	flash.ZIndex = 999999 
+	flash.ZIndex = 2147483647
 	flash.Parent = flashGui
 
 	local tweenIn = TweenService:Create(flash, TweenInfo.new(0.05), { BackgroundTransparency = 0 })
@@ -159,7 +155,7 @@ local function createClone()
 	local cloneData = { clone = clone, highlight = highlight }
 	table.insert(activeClones, cloneData)
 
-	-- 残影自动消亡逻辑
+	-- 残影自动消亡
 	task.spawn(function()
 		task.wait(CLONE_LIFETIME)
 		if clone and clone.Parent then
@@ -188,7 +184,6 @@ local function createClone()
 	end)
 end
 
--- 总清理
 local function cleanupClones()
 	for _, data in ipairs(activeClones) do
 		local clone, highlight = data.clone, data.highlight
@@ -210,12 +205,10 @@ local function cleanupClones()
 	activeClones = {}
 end
 
--- 视觉效果
 local function setVisuals(active)
 	TweenService:Create(colorCorrection, TweenInfo.new(0.4), effectColors[active and "Active" or "Inactive"]):Play()
 end
 
--- 开始/停止生成残影
 local function startCloneSpawning()
 	cloneSpawning = true
 	coroutine.wrap(function()
@@ -230,12 +223,12 @@ local function stopCloneSpawning()
 	cloneSpawning = false
 end
 
--- 核心开关（纯特效，绝无物理修改）
+-- 核心开关（纯特效，无任何物理修改）
 local function activate()
 	if isActive then return end
 	isActive = true
 	
-	-- 仅改变视觉滤镜和音效，绝不碰 humanoid
+	-- 这里不包含任何 humanoid.WalkSpeed 或 JumpPower 的修改
 	setVisuals(true)
 	sound:Play()
 
@@ -283,7 +276,6 @@ end
 
 local function bindCharacter(char)
 	character = char
-	-- 注意：这里没有获取或修改 humanoid 的任何属性
 end
 
 player.CharacterAdded:Connect(bindCharacter)
@@ -291,25 +283,39 @@ if player.Character then
 	bindCharacter(player.Character)
 end
 
--- 按键绑定
-local function handleAction(actionName, inputState, inputObject)
-	if inputState == Enum.UserInputState.Begin then
+-- 键盘监听
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == TOGGLE_KEY then
 		toggleSandevistan()
 	end
-end
+end)
 
-ContextActionService:BindAction(ACTION_NAME, handleAction, true, TOGGLE_KEY)
+-- 最顶层 Sandy 按钮
+local buttonGui = Instance.new("ScreenGui")
+buttonGui.Name = "SandyButtonGui"
+buttonGui.ResetOnSpawn = false
+buttonGui.IgnoreGuiInset = true
+buttonGui.DisplayOrder = 2147483647 
+buttonGui.Parent = player:WaitForChild("PlayerGui")
 
--- 手机端按钮
-local mobileButton = ContextActionService:GetButton(ACTION_NAME)
-if mobileButton then
-	mobileButton.Size = UDim2.new(0, 60, 0, 60)
-	local textLabel = Instance.new("TextLabel")
-	textLabel.Size = UDim2.new(1, 0, 1, 0)
-	textLabel.BackgroundTransparency = 1
-	textLabel.Text = "Sandy"
-	textLabel.TextColor3 = Color3.fromRGB(248, 230, 2)
-	textLabel.TextSize = 16
-	textLabel.Font = Enum.Font.GothamBold
-	textLabel.Parent = mobileButton
-end
+local sandyButton = Instance.new("TextButton")
+sandyButton.Size = UDim2.new(0, 60, 0, 60)
+sandyButton.Position = UDim2.new(1, -80, 1, -160) 
+sandyButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+sandyButton.BackgroundTransparency = 0.5
+sandyButton.BorderSizePixel = 0
+sandyButton.Text = "Sandy"
+sandyButton.TextColor3 = Color3.fromRGB(248, 230, 2)
+sandyButton.TextSize = 16
+sandyButton.Font = Enum.Font.GothamBold
+sandyButton.ZIndex = 2147483647
+sandyButton.Parent = buttonGui
+
+local buttonCorner = Instance.new("UICorner")
+buttonCorner.CornerRadius = UDim.new(1, 0)
+buttonCorner.Parent = sandyButton
+
+sandyButton.MouseButton1Click:Connect(function()
+	toggleSandevistan()
+end)
