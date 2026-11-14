@@ -1,20 +1,14 @@
---[[
-	终极物理特效版：赛博斯安威斯坦（全UI置顶版）
-	保留：速度修改、跳跃修改、滤镜、音效、全屏闪白（最顶层UI）、残影拖尾
-	移除了：隐形椅子（绝不会锁朝向）
-	新增：Sandy 按钮独立UI，层级最高，绝不会被游戏菜单挡住
-]]
+-- 有速度版：赛博斯安威斯坦（带移速/跳跃，UI置顶）
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService") -- 【新增】用于监听键盘F键
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
--- 设置参数
 local TOGGLE_KEY = Enum.KeyCode.F
 local NORMAL_SPEED = 16
 local BOOSTED_SPEED = 80
@@ -24,7 +18,6 @@ local CLONE_INTERVAL = 0.03
 local CLONE_LIFETIME = 0.6   
 local CLONE_FADE_TIME = 0.3  
 
--- 状态
 local isActive = false
 local activeClones = {}
 local flashGui = nil
@@ -32,7 +25,6 @@ local currentShakeConnection = nil
 local character, humanoid
 local cloneSpawning = false
 
--- 特效对象
 local colorCorrection = Instance.new("ColorCorrectionEffect")
 colorCorrection.Name = "SandevistanEffect"
 colorCorrection.Parent = Lighting
@@ -57,7 +49,6 @@ local effectColors = {
 	Inactive = { Contrast = 0, Saturation = 0, TintColor = Color3.new(1, 1, 1) }
 }
 
--- 屏幕闪白（最高层级UI）
 local function flashScreen()
 	if flashGui then flashGui:Destroy() end
 	flashGui = Instance.new("ScreenGui")
@@ -65,7 +56,7 @@ local function flashScreen()
 	flashGui.IgnoreGuiInset = true
 	flashGui.ResetOnSpawn = false
 	flashGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-	flashGui.DisplayOrder = 2147483647 -- 极限层级
+	flashGui.DisplayOrder = 2147483647 
 	flashGui.Parent = player:WaitForChild("PlayerGui")
 
 	local flash = Instance.new("Frame")
@@ -88,7 +79,6 @@ local function flashScreen()
 	flashGui:Destroy()
 end
 
--- 镜头震动
 local function cameraShake(duration, magnitude)
 	if currentShakeConnection then currentShakeConnection:Disconnect() end
 	local startTime = tick()
@@ -108,7 +98,6 @@ local function cameraShake(duration, magnitude)
 	end)
 end
 
--- 生成残影
 local function createClone()
 	if not character or not character:FindFirstChild("HumanoidRootPart") then return end
 	character.Archivable = true
@@ -295,42 +284,37 @@ if player.Character then
 	bindCharacter(player.Character)
 end
 
--- 【重写：键盘监听】
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end -- 如果你正在聊天框打字，就不会触发
+	if gameProcessed then return end
 	if input.KeyCode == TOGGLE_KEY then
 		toggleSandevistan()
 	end
 end)
 
--- 【重写：最顶层 Sandy 按钮】
 local buttonGui = Instance.new("ScreenGui")
 buttonGui.Name = "SandyButtonGui"
 buttonGui.ResetOnSpawn = false
 buttonGui.IgnoreGuiInset = true
-buttonGui.DisplayOrder = 2147483647 -- 极限层级，盖在最上面
+buttonGui.DisplayOrder = 2147483647 
 buttonGui.Parent = player:WaitForChild("PlayerGui")
 
 local sandyButton = Instance.new("TextButton")
--- 按钮大小和位置（你可以自己改 Position 调整位置）
 sandyButton.Size = UDim2.new(0, 60, 0, 60)
-sandyButton.Position = UDim2.new(1, -80, 1, -160) -- 默认在右下角偏上一点
+sandyButton.Position = UDim2.new(1, -110, 1, -100) 
 sandyButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 sandyButton.BackgroundTransparency = 0.5
 sandyButton.BorderSizePixel = 0
-sandyButton.Text = "Sandy"
+sandyButton.Text = "加速"
 sandyButton.TextColor3 = Color3.fromRGB(248, 230, 2)
-sandyButton.TextSize = 16
-sandyButton.Font = Enum.Font.GothamBold
+sandyButton.TextSize = 15
+sandyButton.Font = Enum.Font.SourceHanSansBold
 sandyButton.ZIndex = 2147483647
 sandyButton.Parent = buttonGui
 
--- 给按钮加个圆角
 local buttonCorner = Instance.new("UICorner")
 buttonCorner.CornerRadius = UDim.new(1, 0)
 buttonCorner.Parent = sandyButton
 
--- 点击按钮触发开关
 sandyButton.MouseButton1Click:Connect(function()
 	toggleSandevistan()
 end)
