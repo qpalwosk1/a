@@ -1,9 +1,6 @@
 --[[
-	车辆悬浮加速器 (移动端防误触·锁定版)
-	功能：
-	1. 按住按钮/Shift 加速，松开停止。
-	2. 悬浮窗带【锁定位置】开关，锁定后防误触拖动。
-	3. 可自定义最大速度。
+	车辆悬浮加速器 (帧加速控制版)
+	新增：可以自定义每帧增加的速度（控制推背感）。
 ]]
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -14,9 +11,10 @@ local player = Players.LocalPlayer
 
 -- ================= 配置区 =================
 local DEFAULT_MAX_SPEED = 300
+local DEFAULT_ACCELERATION = 10 -- 默认每帧增加10速度
 local currentSpeed = 0
 local isBoosting = false
-local isLocked = false -- 默认不锁定
+local isLocked = false
 local boostPart = nil
 local currentSeat = nil
 local bindKey = Enum.KeyCode.LeftShift
@@ -28,13 +26,14 @@ gui.ResetOnSpawn = false
 gui.Parent = CoreGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 200, 0, 150)
-mainFrame.Position = UDim2.new(0.5, -100, 0.5, -75)
+-- 高度从 150 增加到 180，为了放下新的输入框
+mainFrame.Size = UDim2.new(0, 200, 0, 185) 
+mainFrame.Position = UDim2.new(0.5, -100, 0.5, -90)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 mainFrame.BackgroundTransparency = 0.2
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
-mainFrame.Draggable = true -- 允许拖动
+mainFrame.Draggable = true
 mainFrame.Parent = gui
 
 local corner = Instance.new("UICorner", mainFrame)
@@ -49,7 +48,7 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 14
 title.Parent = mainFrame
 
--- 速度设置部分
+-- 1. 最大速度设置
 local speedLabel = Instance.new("TextLabel")
 speedLabel.Size = UDim2.new(0.5, -10, 0, 25)
 speedLabel.Position = UDim2.new(0, 10, 0, 30)
@@ -73,10 +72,34 @@ speedInput.Parent = mainFrame
 local inputCorner = Instance.new("UICorner", speedInput)
 inputCorner.CornerRadius = UDim.new(0, 4)
 
--- 锁定按钮
+-- 2. 【新增】每帧加速度设置
+local accelLabel = Instance.new("TextLabel")
+accelLabel.Size = UDim2.new(0.5, -10, 0, 25)
+accelLabel.Position = UDim2.new(0, 10, 0, 65)
+accelLabel.BackgroundTransparency = 1
+accelLabel.Text = "每帧加速:"
+accelLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+accelLabel.Font = Enum.Font.Gotham
+accelLabel.TextSize = 13
+accelLabel.TextXAlignment = Enum.TextXAlignment.Left
+accelLabel.Parent = mainFrame
+
+local accelInput = Instance.new("TextBox")
+accelInput.Size = UDim2.new(0.4, 0, 0, 25)
+accelInput.Position = UDim2.new(0.55, 0, 0, 65)
+accelInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+accelInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+accelInput.Font = Enum.Font.Gotham
+accelInput.TextSize = 13
+accelInput.Text = tostring(DEFAULT_ACCELERATION)
+accelInput.Parent = mainFrame
+local accelCorner = Instance.new("UICorner", accelInput)
+accelCorner.CornerRadius = UDim.new(0, 4)
+
+-- 3. 锁定按钮
 local lockBtn = Instance.new("TextButton")
 lockBtn.Size = UDim2.new(1, -20, 0, 25)
-lockBtn.Position = UDim2.new(0, 10, 0, 65)
+lockBtn.Position = UDim2.new(0, 10, 0, 100)
 lockBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 lockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 lockBtn.Font = Enum.Font.GothamBold
@@ -86,7 +109,7 @@ lockBtn.Parent = mainFrame
 local lockCorner = Instance.new("UICorner", lockBtn)
 lockCorner.CornerRadius = UDim.new(0, 6)
 
--- 加速按钮 (按住生效)
+-- 4. 加速按钮
 local boostBtn = Instance.new("TextButton")
 boostBtn.Size = UDim2.new(1, -20, 0, 35)
 boostBtn.Position = UDim2.new(0, 10, 1, -45)
@@ -121,11 +144,9 @@ local function startBoost()
     local humanoid = char and char:FindFirstChildOfClass("Humanoid")
     currentSeat = humanoid and humanoid.SeatPart
     
-    -- 检查是否坐在车里
     if currentSeat and (currentSeat:IsA("VehicleSeat") or currentSeat.Name:lower():find("seat")) then
         isBoosting = true
         
-        -- 生成幽灵透明方块
         boostPart = Instance.new("Part")
         boostPart.Name = "MagicBooster"
         boostPart.Size = Vector3.new(2, 2, 2)
@@ -135,7 +156,6 @@ local function startBoost()
         boostPart.CFrame = currentSeat.CFrame
         boostPart.Parent = currentSeat
         
-        -- 焊死
         local weld = Instance.new("WeldConstraint")
         weld.Part0 = currentSeat
         weld.Part1 = boostPart
@@ -150,14 +170,12 @@ local function stopBoost()
         boostPart = nil
     end
     currentSpeed = 0
-    -- 恢复按钮颜色
     boostBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 40)
 end
 
 -- 每帧加速逻辑
 RunService.Heartbeat:Connect(function()
     if isBoosting and boostPart and boostPart.Parent then
-        -- 如果玩家跳车了，自动停止
         local char = player.Character
         local humanoid = char and char:FindFirstChildOfClass("Humanoid")
         if not currentSeat or not humanoid or humanoid.SeatPart ~= currentSeat then
@@ -165,17 +183,23 @@ RunService.Heartbeat:Connect(function()
             return
         end
         
+        -- 读取UI里的参数
         local maxSpd = tonumber(speedInput.Text) or DEFAULT_MAX_SPEED
+        local frameAccel = tonumber(accelInput.Text) or DEFAULT_ACCELERATION
+        
+        -- 防止输入负数或0导致不加速
+        if frameAccel < 0.1 then frameAccel = 0.1 end
+        
         local look = currentSeat.CFrame.LookVector
         
-        -- 平滑加速
-        currentSpeed = math.min(currentSpeed + (maxSpd * 0.1), maxSpd)
+        -- 【核心修改】：每帧增加自定义的加速度
+        currentSpeed = math.min(currentSpeed + frameAccel, maxSpd)
+        
         boostPart.AssemblyLinearVelocity = look * currentSpeed
     end
 end)
 
 -- ================= 输入监听 =================
--- 1. 电脑端 Shift 监听
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == bindKey then
@@ -190,7 +214,6 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
--- 2. 移动端/鼠标按住按钮监听
 boostBtn.MouseButton1Down:Connect(function()
     boostBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
     startBoost()
@@ -200,7 +223,6 @@ boostBtn.MouseButton1Up:Connect(function()
     stopBoost()
 end)
 
--- 防止手指滑出按钮导致一直加速
 boostBtn.MouseLeave:Connect(function()
     stopBoost()
 end)
