@@ -1,6 +1,7 @@
 --[[
-	车辆悬浮加速器 (帧加速控制版)
-	新增：可以自定义每帧增加的速度（控制推背感）。
+	车辆悬浮加速器 (双向加速版)
+	新增：反向加速功能 (Ctrl 或 点击后退按钮)。
+	UI：底部拆分为前进和后退双按钮，完美适配移动端。
 ]]
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -11,13 +12,17 @@ local player = Players.LocalPlayer
 
 -- ================= 配置区 =================
 local DEFAULT_MAX_SPEED = 300
-local DEFAULT_ACCELERATION = 10 -- 默认每帧增加10速度
+local DEFAULT_ACCELERATION = 10
 local currentSpeed = 0
 local isBoosting = false
+local boostDirection = 1 -- 1 代表前进，-1 代表后退
 local isLocked = false
 local boostPart = nil
 local currentSeat = nil
-local bindKey = Enum.KeyCode.LeftShift
+
+-- 按键绑定
+local bindKeyForward = Enum.KeyCode.LeftShift
+local bindKeyBackward = Enum.KeyCode.LeftControl
 
 -- ================= UI 界面 =================
 local gui = Instance.new("ScreenGui")
@@ -26,7 +31,6 @@ gui.ResetOnSpawn = false
 gui.Parent = CoreGui
 
 local mainFrame = Instance.new("Frame")
--- 高度从 150 增加到 180，为了放下新的输入框
 mainFrame.Size = UDim2.new(0, 200, 0, 185) 
 mainFrame.Position = UDim2.new(0.5, -100, 0.5, -90)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
@@ -42,7 +46,7 @@ corner.CornerRadius = UDim.new(0, 8)
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 25)
 title.BackgroundTransparency = 1
-title.Text = "🚗 车辆加速器"
+title.Text = "🚗 车辆双向加速器"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
@@ -72,7 +76,7 @@ speedInput.Parent = mainFrame
 local inputCorner = Instance.new("UICorner", speedInput)
 inputCorner.CornerRadius = UDim.new(0, 4)
 
--- 2. 【新增】每帧加速度设置
+-- 2. 每帧加速度设置
 local accelLabel = Instance.new("TextLabel")
 accelLabel.Size = UDim2.new(0.5, -10, 0, 25)
 accelLabel.Position = UDim2.new(0, 10, 0, 65)
@@ -109,18 +113,31 @@ lockBtn.Parent = mainFrame
 local lockCorner = Instance.new("UICorner", lockBtn)
 lockCorner.CornerRadius = UDim.new(0, 6)
 
--- 4. 加速按钮
-local boostBtn = Instance.new("TextButton")
-boostBtn.Size = UDim2.new(1, -20, 0, 35)
-boostBtn.Position = UDim2.new(0, 10, 1, -45)
-boostBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 40)
-boostBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-boostBtn.Font = Enum.Font.GothamBold
-boostBtn.TextSize = 15
-boostBtn.Text = "按住加速 (Shift)"
-boostBtn.Parent = mainFrame
-local btnCorner = Instance.new("UICorner", boostBtn)
-btnCorner.CornerRadius = UDim.new(0, 6)
+-- 4. 后退按钮 (左侧)
+local backBtn = Instance.new("TextButton")
+backBtn.Size = UDim2.new(0.5, -15, 0, 35)
+backBtn.Position = UDim2.new(0, 10, 1, -45)
+backBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 40)
+backBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+backBtn.Font = Enum.Font.GothamBold
+backBtn.TextSize = 14
+backBtn.Text = "后退 (Ctrl)"
+backBtn.Parent = mainFrame
+local btnCornerBack = Instance.new("UICorner", backBtn)
+btnCornerBack.CornerRadius = UDim.new(0, 6)
+
+-- 5. 前进按钮 (右侧)
+local forwardBtn = Instance.new("TextButton")
+forwardBtn.Size = UDim2.new(0.5, -15, 0, 35)
+forwardBtn.Position = UDim2.new(0.5, 5, 1, -45)
+forwardBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 40)
+forwardBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+forwardBtn.Font = Enum.Font.GothamBold
+forwardBtn.TextSize = 14
+forwardBtn.Text = "前进 (Shift)"
+forwardBtn.Parent = mainFrame
+local btnCornerFwd = Instance.new("UICorner", forwardBtn)
+btnCornerFwd.CornerRadius = UDim.new(0, 6)
 
 -- ================= 锁定位置逻辑 =================
 lockBtn.MouseButton1Click:Connect(function()
@@ -137,7 +154,7 @@ lockBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ================= 核心物理逻辑 =================
-local function startBoost()
+local function startBoost(direction)
     if isBoosting then return end
     
     local char = player.Character
@@ -146,6 +163,7 @@ local function startBoost()
     
     if currentSeat and (currentSeat:IsA("VehicleSeat") or currentSeat.Name:lower():find("seat")) then
         isBoosting = true
+        boostDirection = direction -- 记录当前方向 (1 前进, -1 后退)
         
         boostPart = Instance.new("Part")
         boostPart.Name = "MagicBooster"
@@ -170,7 +188,10 @@ local function stopBoost()
         boostPart = nil
     end
     currentSpeed = 0
-    boostBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 40)
+    
+    -- 恢复按钮颜色
+    forwardBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 40)
+    backBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 40)
 end
 
 -- 每帧加速逻辑
@@ -183,46 +204,53 @@ RunService.Heartbeat:Connect(function()
             return
         end
         
-        -- 读取UI里的参数
         local maxSpd = tonumber(speedInput.Text) or DEFAULT_MAX_SPEED
         local frameAccel = tonumber(accelInput.Text) or DEFAULT_ACCELERATION
         
-        -- 防止输入负数或0导致不加速
         if frameAccel < 0.1 then frameAccel = 0.1 end
         
-        local look = currentSeat.CFrame.LookVector
+        -- 获取车头朝向，并根据方向系数 (1 或 -1) 计算最终的加速向量
+        local look = currentSeat.CFrame.LookVector * boostDirection
         
-        -- 【核心修改】：每帧增加自定义的加速度
+        -- 平滑加速
         currentSpeed = math.min(currentSpeed + frameAccel, maxSpd)
         
+        -- 施加推力
         boostPart.AssemblyLinearVelocity = look * currentSpeed
     end
 end)
 
 -- ================= 输入监听 =================
+-- 电脑端按键
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    if input.KeyCode == bindKey then
-        boostBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        startBoost()
+    if input.KeyCode == bindKeyForward then
+        forwardBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        startBoost(1)
+    elseif input.KeyCode == bindKeyBackward then
+        backBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
+        startBoost(-1)
     end
 end)
 
 UserInputService.InputEnded:Connect(function(input, gameProcessed)
-    if input.KeyCode == bindKey then
+    if input.KeyCode == bindKeyForward or input.KeyCode == bindKeyBackward then
         stopBoost()
     end
 end)
 
-boostBtn.MouseButton1Down:Connect(function()
-    boostBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    startBoost()
+-- 前进按钮监听
+forwardBtn.MouseButton1Down:Connect(function()
+    forwardBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    startBoost(1)
 end)
+forwardBtn.MouseButton1Up:Connect(function() stopBoost() end)
+forwardBtn.MouseLeave:Connect(function() stopBoost() end)
 
-boostBtn.MouseButton1Up:Connect(function()
-    stopBoost()
+-- 后退按钮监听
+backBtn.MouseButton1Down:Connect(function()
+    backBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
+    startBoost(-1)
 end)
-
-boostBtn.MouseLeave:Connect(function()
-    stopBoost()
-end)
+backBtn.MouseButton1Up:Connect(function() stopBoost() end)
+backBtn.MouseLeave:Connect(function() stopBoost() end)
